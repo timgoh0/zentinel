@@ -222,11 +222,17 @@ pub enum HealthCheckType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetryPolicy {
     pub max_attempts: u32,
+    pub backoff_base_ms: u64,
+    pub backoff_max_ms: u64,
 }
 
 impl Default for RetryPolicy {
     fn default() -> Self {
-        Self { max_attempts: 3 }
+        Self {
+            max_attempts: 3,
+            backoff_base_ms: 100,
+            backoff_max_ms: 10000,
+        }
     }
 }
 

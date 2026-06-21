@@ -662,6 +662,20 @@ impl ProxyHttp for ZentinelProxy {
             .map(|r| r.max_attempts)
             .unwrap_or(1);
 
+        let backoff_base_ms = route_match
+            .config
+            .retry_policy
+            .as_ref()
+            .map(|r| r.backoff_base_ms)
+            .unwrap_or(1);
+
+        let backoff_max_ms = route_match
+            .config
+            .retry_policy
+            .as_ref()
+            .map(|r| r.backoff_max_ms)
+            .unwrap_or(1);
+
         trace!(
             correlation_id = %ctx.trace_id,
             upstream = %upstream_name,
@@ -747,11 +761,17 @@ impl ProxyHttp for ZentinelProxy {
                     last_error = Some(e);
 
                     if attempt < max_attempts {
-                        // Exponential backoff (using pingora-timeout for efficiency)
-                        let backoff = Duration::from_millis(100 * 2_u64.pow(attempt - 1));
+                        // Exponential backoff
+                        // ????(using pingora-timeout for efficiency)
+                        let backoff = Duration::from_millis(
+                            (backoff_base_ms * 2_u64.pow(attempt - 1)) // Exponential increase
+                                .min(backoff_max_ms), // Up to backoff-max-ms
+                        );
                         trace!(
                             correlation_id = %ctx.trace_id,
                             backoff_ms = backoff.as_millis(),
+                            backoff_base_ms = backoff_base_ms,
+                            backoff_max_ms = backoff_max_ms,
                             "Backing off before retry"
                         );
                         sleep(backoff).await;
