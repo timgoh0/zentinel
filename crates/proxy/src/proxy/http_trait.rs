@@ -761,8 +761,7 @@ impl ProxyHttp for ZentinelProxy {
                     last_error = Some(e);
 
                     if attempt < max_attempts {
-                        // Exponential backoff
-                        // ????(using pingora-timeout for efficiency)
+                        // Exponential backoff (using pingora-timeout for efficiency)
                         let backoff = Duration::from_millis(
                             (backoff_base_ms * 2_u64.pow(attempt - 1)) // Exponential increase
                                 .min(backoff_max_ms), // Up to backoff-max-ms
