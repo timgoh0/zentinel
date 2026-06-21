@@ -655,7 +655,7 @@ impl ProxyHttp for ZentinelProxy {
             })?;
 
         // Select peer from pool with retries
-        let max_retries = route_match
+        let max_attempts = route_match
             .config
             .retry_policy
             .as_ref()
@@ -665,21 +665,21 @@ impl ProxyHttp for ZentinelProxy {
         trace!(
             correlation_id = %ctx.trace_id,
             upstream = %upstream_name,
-            max_retries = max_retries,
+            max_attempts = max_attempts,
             "Starting upstream peer selection"
         );
 
         let mut last_error = None;
         let selection_start = std::time::Instant::now();
 
-        for attempt in 1..=max_retries {
+        for attempt in 1..=max_attempts {
             ctx.upstream_attempts = attempt;
 
             trace!(
                 correlation_id = %ctx.trace_id,
                 upstream = %upstream_name,
                 attempt = attempt,
-                max_retries = max_retries,
+                max_attempts = max_attempts,
                 "Attempting to select upstream peer"
             );
 
@@ -740,13 +740,13 @@ impl ProxyHttp for ZentinelProxy {
                         correlation_id = %ctx.trace_id,
                         upstream = %upstream_name,
                         attempt = attempt,
-                        max_retries = max_retries,
+                        max_attempts = max_attempts,
                         error = %e,
                         "Failed to select upstream peer"
                     );
                     last_error = Some(e);
 
-                    if attempt < max_retries {
+                    if attempt < max_attempts {
                         // Exponential backoff (using pingora-timeout for efficiency)
                         let backoff = Duration::from_millis(100 * 2_u64.pow(attempt - 1));
                         trace!(
@@ -764,7 +764,7 @@ impl ProxyHttp for ZentinelProxy {
         error!(
             correlation_id = %ctx.trace_id,
             upstream = %upstream_name,
-            attempts = max_retries,
+            attempts = max_attempts,
             selection_duration_ms = selection_duration.as_millis(),
             last_error = ?last_error,
             "All upstream selection attempts failed"
@@ -775,7 +775,7 @@ impl ProxyHttp for ZentinelProxy {
             &ctx.trace_id,
             ctx.route_id.as_deref(),
             Some(upstream_name),
-            Some(format!("attempts={} error={:?}", max_retries, last_error)),
+            Some(format!("attempts={} error={:?}", max_attempts, last_error)),
         );
 
         // Record exhausted metric if fallback was used but all upstreams failed
