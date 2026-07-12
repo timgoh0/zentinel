@@ -758,9 +758,13 @@ impl ProxyHttp for ZentinelProxy {
                         error = %e,
                         "Failed to select upstream peer"
                     );
+
+                    //Can we retry?
+                    let retryable = e.is_retryable();
+
                     last_error = Some(e);
 
-                    if attempt < max_attempts {
+                    if attempt < max_attempts && retryable {
                         // Exponential backoff (using pingora-timeout for efficiency)
                         let backoff = Duration::from_millis(
                             (backoff_base_ms * 2_u64.pow(attempt - 1)) // Exponential increase
@@ -2158,7 +2162,7 @@ impl ProxyHttp for ZentinelProxy {
                 None
             };
             self.passive_health
-                .record_outcome(upstream, success, error_msg.as_deref())
+                .record_outcome(upstream, success, status, error_msg.as_deref())
                 .await;
 
             // Report to upstream pool

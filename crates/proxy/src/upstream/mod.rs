@@ -1124,6 +1124,8 @@ impl UpstreamPool {
         );
 
         let mut attempts = 0;
+        //TODO: check why peer selection is capped at targets.len()*2 and not configured
+        //Note outer loop caller in async fn upstream_peer already counts up to max attempts
         let max_attempts = self.targets.len() * 2;
 
         while attempts < max_attempts {

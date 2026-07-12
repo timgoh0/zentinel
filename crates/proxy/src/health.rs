@@ -4,6 +4,8 @@
 //! supporting HTTP, TCP, and gRPC health checks with configurable thresholds.
 
 use async_trait::async_trait;
+use http::StatusCode;
+use http::status::InvalidStatusCode;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -1145,6 +1147,8 @@ pub struct PassiveHealthChecker {
     outcomes: Arc<RwLock<HashMap<String, Vec<bool>>>>,
     /// Last error per target
     last_errors: Arc<RwLock<HashMap<String, String>>>,
+    /// Last status code (u16) for this target
+    last_status_code: Arc<RwLock<Option<u16>>>,
     /// Active health checker reference
     active_checker: Option<Arc<ActiveHealthChecker>>,
 }
@@ -1167,16 +1171,20 @@ impl PassiveHealthChecker {
             window_size,
             outcomes: Arc::new(RwLock::new(HashMap::new())),
             last_errors: Arc::new(RwLock::new(HashMap::new())),
+            last_status_code: Arc::new(RwLock::new(None)),
             active_checker,
         }
     }
 
     /// Record request outcome with optional error message
-    pub async fn record_outcome(&self, target: &str, success: bool, error: Option<&str>) {
+    /// status_code is u16 and not a http::StatusCode because
+    /// StatusCode is not copy and we just want to track a request
+    pub async fn record_outcome(&self, target: &str, success: bool, status_code: u16, error: Option<&str>) {
         trace!(
             target = %target,
             success = success,
             error = ?error,
+            status_code = status_code,
             "Recording request outcome"
         );
 
@@ -1190,6 +1198,9 @@ impl PassiveHealthChecker {
             // Clear last error on success
             self.last_errors.write().await.remove(target);
         }
+
+        let mut sc = self.last_status_code.write().await;
+        *sc = Some(status_code);
 
         let mut outcomes = self.outcomes.write().await;
         let target_outcomes = outcomes
@@ -1469,11 +1480,11 @@ mod tests {
 
         // Record some outcomes
         for _ in 0..5 {
-            checker.record_outcome("target1", true, None).await;
+            checker.record_outcome("target1", true, 200 ,None).await;
         }
         for _ in 0..3 {
             checker
-                .record_outcome("target1", false, Some("HTTP 503"))
+                .record_outcome("target1", false, 503, Some("HTTP 503"))
                 .await;
         }
 
